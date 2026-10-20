@@ -10,14 +10,14 @@ export default defineConfig(({ mode }) => {
       include: ["react", "react-dom/client"],
     },
     server: {
-      host: "0.0.0.0",
+      host: "127.0.0.1",
       allowedHosts: ["terminal.local"],
       warmup: {
         clientFiles: ["./src/main.jsx"],
       },
     },
     preview: {
-      host: "0.0.0.0",
+      host: "127.0.0.1",
       port: 4173,
       allowedHosts: ["localhost"],
     },

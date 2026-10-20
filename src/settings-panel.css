@@ -1,0 +1,48 @@
+.settings-backdrop {
+  position: fixed; inset: 0; z-index: 110; display: grid; place-items: center;
+  padding: 24px; background: rgba(37, 47, 52, .34);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+}
+.settings-panel {
+  width: min(720px, 100%); max-height: calc(100dvh - 48px); overflow: auto;
+  padding: clamp(22px, 4vw, 40px); border-radius: 32px;
+  border: 1px solid rgba(255,255,255,.82);
+  background: linear-gradient(138deg, rgba(255,255,255,.92), rgba(245,249,249,.79));
+  box-shadow: 0 34px 90px rgba(40,55,60,.23), inset 0 2px 2px rgba(255,255,255,.95);
+  color: #1c292d;
+}
+.settings-header { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.settings-eyebrow { display: inline-flex; align-items: center; gap: 7px; color: #577079; font-size: 11px; letter-spacing: .12em; }
+.settings-header h2 { margin: 8px 0; font-size: clamp(26px, 5vw, 38px); font-weight: 600; letter-spacing: -.045em; }
+.settings-header p { margin: 0; color: #61737a; font-size: 13px; }
+.settings-close { flex: 0 0 38px; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.8); border-radius: 50%; background: rgba(255,255,255,.52); color: inherit; cursor: pointer; }
+.settings-section-title { display: flex; align-items: center; gap: 10px; margin: 20px 0 12px; }
+.settings-section-title > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #d9f6f2; color: #245e62; font-size: 11px; font-weight: 700; }
+.settings-section-title h3 { margin: 0; font-size: 16px; font-weight: 650; }
+.settings-section-title em { margin-left: auto; font-size: 11px; font-style: normal; color: #71848a; }
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.settings-field { display: grid; gap: 6px; min-width: 0; }
+.settings-field > span { color: #526b71; font-size: 12px; }
+.settings-field small { color: #2b8a7f; }
+.settings-field input, .settings-field select { width: 100%; min-height: 44px; border: 1px solid rgba(149,171,176,.4); border-radius: 14px; padding: 10px 13px; outline: none; background: rgba(255,255,255,.55); color: #223138; font: inherit; font-size: 13px; }
+.settings-field input:focus, .settings-field select:focus { border-color: #66aeb0; box-shadow: 0 0 0 3px rgba(145,229,222,.25); }
+.settings-full { grid-column: 1 / -1; }
+.settings-help { margin: -4px 0 14px; color: #657b82; font-size: 12px; line-height: 1.6; }
+.settings-actions { display: flex; justify-content: flex-end; margin: 19px 0 25px; }
+.settings-save, .settings-upload { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 0 17px; border: 0; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+.settings-save { background: #25383e; color: white; box-shadow: 0 8px 18px rgba(37,56,62,.19); }
+.settings-upload { flex: 0 0 auto; border: 1px solid rgba(112,156,159,.28); background: rgba(211,249,242,.56); color: #245c5e; }
+.settings-save:disabled, .settings-upload:disabled { opacity: .5; cursor: default; }
+.settings-reference { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding: 15px 18px; border: 1px solid rgba(255,255,255,.82); border-radius: 20px; background: rgba(255,255,255,.46); }
+.settings-reference .settings-section-title { margin-top: 0; }
+.settings-reference .settings-help { margin-bottom: 0; }
+.settings-privacy { margin: 18px 0 0; color: #74858a; font-size: 11px; line-height: 1.5; }
+.settings-message { margin: 13px 0 0; font-size: 12px; }
+.settings-message.is-error { color: #a04545; }
+.settings-message.is-success { color: #21796b; }
+@media (max-width: 580px) {
+  .settings-backdrop { align-items: end; padding: 0; }
+  .settings-panel { width: 100%; max-height: 92dvh; border-radius: 28px 28px 0 0; padding: 24px 18px calc(26px + env(safe-area-inset-bottom)); }
+  .settings-grid { grid-template-columns: 1fr; }
+  .settings-reference { align-items: stretch; flex-direction: column; }
+}

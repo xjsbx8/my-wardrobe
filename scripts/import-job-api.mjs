@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { analyzeClothing, validateBaseUrl, VISION_PROVIDERS } from "./vision-providers.mjs";
+import { generateImage, IMAGE_PROVIDERS } from "./image-providers.mjs";
 
 const API_ROOT = "/api/import/jobs";
 const ASSET_ROOT = "/api/import/assets";
@@ -296,62 +298,46 @@ function stageState() {
   return { status: "pending", decision: null, attempts: 0, assetUrl: null, failedAssetUrl: null, cleanupPreviewUrl: null, cleanupTolerance: 46, cleanupDiagnostics: null, error: null, prompt: null, updatedAt: null };
 }
 
-async function openAIEdit({ key, baseUrl, model, prompt, images, size, background, quality }) {
-  const form = new FormData();
-  form.set("model", model);
-  form.set("prompt", prompt);
-  form.set("size", size);
-  form.set("quality", quality || "high");
-  form.set("output_format", "png");
-  if (background) form.set("background", background);
-  for (const [index, image] of images.entries()) {
-    const normalized = await normalizeImage(image.data);
-    form.append("image[]", new Blob([normalized], { type: "image/png" }), image.name?.replace(/\.[^.]+$/, ".png") || `image-${index + 1}.png`);
-  }
-  const response = await fetch(`${baseUrl}/images/edits`, {
-    method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form,
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error?.message || `OpenAI image request failed (${response.status})`);
-  const encoded = result.data?.[0]?.b64_json;
-  if (!encoded) throw new Error("OpenAI response did not contain image data");
-  return Buffer.from(encoded, "base64");
-}
-
-async function openAIAnalyze({ key, baseUrl, model, image, mime }) {
-  const response = await fetch(`${baseUrl}/responses`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      input: [{ role: "user", content: [
-        { type: "input_text", text: "Identify every distinct wearable clothing item visible in this image. A photo may show one isolated garment or a person wearing several items. Return one record per actual item that should enter a wardrobe. Ignore the person's body and non-wearable background objects. For each item, include a tight bounding box around only that item using integer coordinates normalized to a 1000 by 1000 image: x and y are the top-left corner, followed by width and height. Boxes may overlap when garments overlap, but each box must focus on one distinct item. Use only these category ids: upperbody, wholebody_up, lowerbody, accessories_up, shoes. Suggest a concise specific name, primary hex color, optional genuinely distinct secondary hex color, and 1-4 useful lowercase detail tags." },
-        { type: "input_image", image_url: `data:${mime};base64,${image.toString("base64")}` },
-      ] }],
-      text: { format: { type: "json_schema", name: "wardrobe_items", strict: true, schema: { type: "object", additionalProperties: false, properties: { items: { type: "array", minItems: 0, maxItems: 8, items: { type: "object", additionalProperties: false, properties: { name: { type: "string" }, part: { type: "string", enum: ["upperbody", "wholebody_up", "lowerbody", "accessories_up", "shoes"] }, color: { type: "string", pattern: "^#[0-9A-Fa-f]{6}$" }, secondaryColor: { anyOf: [{ type: "string", pattern: "^#[0-9A-Fa-f]{6}$" }, { type: "null" }] }, tags: { type: "array", items: { type: "string" }, maxItems: 4 }, boundingBox: { type: "object", additionalProperties: false, properties: { x: { type: "integer", minimum: 0, maximum: 999 }, y: { type: "integer", minimum: 0, maximum: 999 }, width: { type: "integer", minimum: 1, maximum: 1000 }, height: { type: "integer", minimum: 1, maximum: 1000 } }, required: ["x", "y", "width", "height"] } }, required: ["name", "part", "color", "secondaryColor", "tags", "boundingBox"] } } }, required: ["items"] } } },
-    }),
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error?.message || `OpenAI analysis failed (${response.status})`);
-  const outputText = result.output_text || result.output?.flatMap((item) => item.content || []).find((item) => item.type === "output_text")?.text;
-  if (!outputText) throw new Error("OpenAI analysis returned no structured result");
-  const parsed = JSON.parse(outputText);
-  if (!Array.isArray(parsed.items)) throw new Error("OpenAI analysis returned an invalid clothing list");
-  return parsed.items;
-}
-
 export function wardrobeImportApi(options = {}) {
   let root;
   let jobsDir;
   let importedFile;
   let libraryAssetDir;
+  let settingsFile;
+  let localSettings = {};
   const running = new Map();
   const setting = (name, fallback = "") => options.env?.[name] || process.env[name] || fallback;
-  const apiBaseUrl = () => setting("OPENAI_API_BASE_URL", "https://api.openai.com/v1").replace(/\/$/, "");
+  const visionConfig = () => {
+    const savedVision = VISION_PROVIDERS[localSettings.vision?.provider] ? localSettings.vision : null;
+    const configuredProvider = savedVision?.provider || setting("WARDROBE_VISION_PROVIDER", "ark");
+    const provider = VISION_PROVIDERS[configuredProvider] ? configuredProvider : "ark";
+    const preset = VISION_PROVIDERS[provider];
+    return {
+      provider,
+      key: savedVision?.apiKey || setting(preset.envKey),
+      baseUrl: savedVision?.baseUrl || setting("WARDROBE_VISION_BASE_URL", preset.baseUrl),
+      model: savedVision?.model || setting("WARDROBE_VISION_MODEL", preset.model),
+    };
+  };
+  const imageConfig = () => {
+    const savedImage = IMAGE_PROVIDERS[localSettings.image?.provider] ? localSettings.image : null;
+    const configuredProvider = savedImage?.provider || setting("WARDROBE_IMAGE_PROVIDER", "ark-plan");
+    const provider = IMAGE_PROVIDERS[configuredProvider] ? configuredProvider : "ark-plan";
+    const preset = IMAGE_PROVIDERS[provider];
+    return {
+      provider,
+      key: savedImage?.apiKey || setting(preset.envKey),
+      baseUrl: savedImage?.baseUrl || setting("WARDROBE_IMAGE_BASE_URL", preset.baseUrl),
+      model: savedImage?.model || setting("WARDROBE_IMAGE_MODEL", preset.model),
+    };
+  };
+  const modelReference = () => localSettings.modelReference || setting("WARDROBE_MODEL_REFERENCE", "data/model-reference.png");
 
   async function setupStatus() {
-    const hasApiKey = Boolean(setting("OPENAI_API_KEY").trim());
-    const referenceSetting = setting("WARDROBE_MODEL_REFERENCE", "data/model-reference.png");
+    const vision = visionConfig();
+    const image = imageConfig();
+    const hasApiKey = Boolean(vision.key.trim());
+    const referenceSetting = modelReference();
     const referencePath = path.resolve(root, referenceSetting);
     let hasModelReference = false;
     try {
@@ -360,10 +346,18 @@ export function wardrobeImportApi(options = {}) {
       if (error.code !== "ENOENT") throw error;
     }
     return {
-      ready: hasApiKey && hasModelReference,
+      ready: hasApiKey && Boolean(vision.baseUrl && vision.model),
       hasApiKey,
       hasModelReference,
       modelReference: referenceSetting,
+      hasImageApiKey: Boolean(image.key.trim()),
+      imageGenerationReady: Boolean(image.key.trim() && image.baseUrl.trim() && image.model.trim()),
+      provider: vision.provider,
+      visionBaseUrl: vision.baseUrl,
+      visionModel: vision.model,
+      imageBaseUrl: image.baseUrl,
+      imageModel: image.model,
+      imageProvider: image.provider,
     };
   }
 
@@ -434,15 +428,16 @@ export function wardrobeImportApi(options = {}) {
       try {
         const dir = path.join(jobsDir, current.id);
         const output = path.join(dir, `${stageName}-${stage.attempts}.png`);
-        const key = setting("OPENAI_API_KEY");
-        if (!key) throw new Error("OPENAI_API_KEY is not configured");
+        const imageApi = imageConfig();
+        const key = imageApi.key;
+        if (!key || !imageApi.baseUrl || !imageApi.model) throw new Error("请在设置中配置生图 API 地址、API Key 和模型，或直接使用裁剪图入库。");
         const sourceFile = stageName === "garment" && current.internal.cropFile ? current.internal.cropFile : current.internal.originalFile;
         const original = { data: await readFile(path.join(dir, sourceFile)), mime: "image/png", name: sourceFile };
         let bytes;
         if (stageName === "garment") {
           chromaKeyUsed = chooseChromaKey(current.metadata.color);
           const basePrompt = options.garmentPrompt || buildGarmentPrompt(current.metadata, chromaKeyUsed);
-          bytes = await openAIEdit({ key, baseUrl: apiBaseUrl(), model: setting("OPENAI_GARMENT_MODEL", setting("OPENAI_IMAGE_MODEL", "gpt-image-2")), quality: setting("OPENAI_IMAGE_QUALITY", "high"), size: "1024x1024", images: [original], prompt: current.stages.garment.prompt ? `${basePrompt}\nUser regeneration direction: ${current.stages.garment.prompt}` : basePrompt });
+          bytes = await generateImage({ provider: imageApi.provider, key, baseUrl: imageApi.baseUrl, model: imageApi.model, quality: setting("WARDROBE_IMAGE_QUALITY", "high"), size: "1024x1024", images: [original], prompt: current.stages.garment.prompt ? `${basePrompt}\nUser regeneration direction: ${current.stages.garment.prompt}` : basePrompt });
           const rawName = `${stageName}-${stage.attempts}-source.png`;
           await writeFile(path.join(dir, rawName), bytes);
           failedAssetUrl = `${ASSET_ROOT}/${current.id}/${rawName}`;
@@ -453,7 +448,7 @@ export function wardrobeImportApi(options = {}) {
             : `garment-${current.stages.garment.attempts}.png`;
           const garmentFile = path.join(dir, garmentName);
           const garment = { data: await readFile(garmentFile), mime: "image/png", name: "garment.png" };
-          const modelPath = path.resolve(root, setting("WARDROBE_MODEL_REFERENCE", "data/model-reference.png"));
+          const modelPath = path.resolve(root, modelReference());
           let modelData;
           try {
             modelData = await readFile(modelPath);
@@ -463,7 +458,7 @@ export function wardrobeImportApi(options = {}) {
           }
           const model = { data: modelData, mime: "image/png", name: "model.png" };
           const basePrompt = options.modeledPrompt || "Create a professional horizontal 3:2 editorial fashion photograph of the person in Image 1 wearing the exact garment from Image 2. Preserve the person's recognizable identity, face, hair, age and proportions. Preserve every garment color, material, fit, construction, graphic, logo and distinctive detail. Keep the complete featured item clearly visible and unobstructed, use understated neutral supporting clothes, realistic anatomy, natural light, authentic fabric, a tasteful real-world setting, and leave environmental space around the model. No text, watermark, product mockup, or synthetic appearance.";
-          bytes = await openAIEdit({ key, baseUrl: apiBaseUrl(), model: setting("OPENAI_MODELED_MODEL", setting("OPENAI_IMAGE_MODEL", "gpt-image-2")), quality: setting("OPENAI_IMAGE_QUALITY", "high"), size: "1536x1024", images: [model, garment], prompt: current.stages.modeled.prompt ? `${basePrompt}\nUser regeneration direction: ${current.stages.modeled.prompt}` : basePrompt });
+          bytes = await generateImage({ provider: imageApi.provider, key, baseUrl: imageApi.baseUrl, model: imageApi.model, quality: setting("WARDROBE_IMAGE_QUALITY", "high"), size: "1536x1024", images: [model, garment], prompt: current.stages.modeled.prompt ? `${basePrompt}\nUser regeneration direction: ${current.stages.modeled.prompt}` : basePrompt });
         }
         await writeFile(output, bytes);
         const fresh = await loadJob(current.id);
@@ -495,6 +490,50 @@ export function wardrobeImportApi(options = {}) {
         return json(res, 200, await loadImported());
       }
       if (url.pathname === "/api/import/config" && req.method === "GET") {
+        return json(res, 200, await setupStatus());
+      }
+      if (url.pathname === "/api/import/config" && req.method === "POST") {
+        const input = await body(req);
+        const requested = input.vision || {};
+        const provider = requested.provider;
+        if (!VISION_PROVIDERS[provider]) throw Object.assign(new Error("请选择有效的识图服务。"), { status: 400 });
+        const preset = VISION_PROVIDERS[provider];
+        const baseUrl = validateBaseUrl(String(requested.baseUrl || preset.baseUrl || ""));
+        const model = String(requested.model || preset.model || "").trim().slice(0, 120);
+        if (!model) throw Object.assign(new Error("请填写支持识图的模型名称。"), { status: 400 });
+        const oldVision = localSettings.vision?.provider === provider ? localSettings.vision : {};
+        localSettings.vision = {
+          provider, baseUrl, model,
+          apiKey: String(requested.apiKey || "").trim() || oldVision.apiKey || "",
+        };
+        if (input.image && typeof input.image === "object") {
+          const requestedImage = input.image;
+          const imageProvider = requestedImage.provider || "ark-plan";
+          if (!IMAGE_PROVIDERS[imageProvider]) throw Object.assign(new Error("请选择有效的生图服务。"), { status: 400 });
+          const imagePreset = IMAGE_PROVIDERS[imageProvider];
+          const oldImage = localSettings.image?.provider === imageProvider ? localSettings.image : {};
+          const imageBaseUrl = String(requestedImage.baseUrl || imagePreset.baseUrl || "").trim();
+          const imageModel = String(requestedImage.model || imagePreset.model || "").trim().slice(0, 120);
+          const imageApiKey = requestedImage.clearKey ? "" : String(requestedImage.apiKey || "").trim() || oldImage.apiKey || "";
+          if (imageApiKey && (!imageBaseUrl || !imageModel)) throw Object.assign(new Error("请填写生图 API 地址和模型名称。"), { status: 400 });
+          localSettings.image = {
+            provider: imageProvider,
+            baseUrl: imageBaseUrl ? validateBaseUrl(imageBaseUrl) : "",
+            model: imageModel,
+            apiKey: imageApiKey,
+          };
+        }
+        await atomicJson(settingsFile, localSettings);
+        return json(res, 200, await setupStatus());
+      }
+      if (url.pathname === "/api/import/model-reference" && req.method === "POST") {
+        const input = await body(req);
+        const photo = decodeImage(input);
+        const normalized = await normalizeImage(photo.data);
+        const target = path.join(path.dirname(settingsFile), "model-reference.png");
+        await writeFile(target, normalized);
+        localSettings.modelReference = path.relative(root, target).replace(/\\/g, "/");
+        await atomicJson(settingsFile, localSettings);
         return json(res, 200, await setupStatus());
       }
       const wardrobeDeleteMatch = url.pathname.match(/^\/api\/import\/wardrobe\/(import-[a-f0-9-]{36})$/i);
@@ -529,17 +568,13 @@ export function wardrobeImportApi(options = {}) {
       if (url.pathname === API_ROOT && req.method === "POST") {
         const setup = await setupStatus();
         if (!setup.ready) {
-          const missing = [
-            !setup.hasApiKey && "OPENAI_API_KEY in .env",
-            !setup.hasModelReference && `a PNG photo of yourself at ${setup.modelReference}`,
-          ].filter(Boolean).join(" and ");
-          return json(res, 503, { error: `Setup required: add ${missing}, then restart the app.` });
+          return json(res, 503, { error: "请先在设置中配置支持识图的 API Key 和模型。" });
         }
         const input = await body(req);
         const image = decodeImage(input);
         const normalizedImage = await normalizeImage(image.data);
-        const key = setting("OPENAI_API_KEY");
-        const detected = (await openAIAnalyze({ key, baseUrl: apiBaseUrl(), model: setting("OPENAI_VISION_MODEL", "gpt-5.4-mini"), image: normalizedImage, mime: "image/png" })).map(normalizeMetadata);
+        const vision = visionConfig();
+        const detected = (await analyzeClothing({ key: vision.key, baseUrl: vision.baseUrl, model: vision.model, image: normalizedImage })).map(normalizeMetadata);
         const jobs = [];
         for (const metadata of detected) {
           const id = randomUUID();
@@ -616,6 +651,7 @@ export function wardrobeImportApi(options = {}) {
         if (!STAGES.has(stageName)) throw Object.assign(new Error("Invalid stage"), { status: 400 });
         if (decision === "regenerate") {
           if (stageName === "crop") throw Object.assign(new Error("Upload the image again to create new crops"), { status: 400 });
+          if (!(await setupStatus()).imageGenerationReady) throw Object.assign(new Error("重新生成需要在设置中配置生图 API Key。"), { status: 409 });
           const input = await body(req);
           job.stages[stageName].prompt = typeof input.prompt === "string" ? input.prompt.trim().slice(0, 1200) || null : null;
           job.stages[stageName].status = "queued";
@@ -632,9 +668,16 @@ export function wardrobeImportApi(options = {}) {
         job.stages[stageName].status = job.stages[stageName].decision;
         job.stages[stageName].error = null;
         job.stages[stageName].updatedAt = new Date().toISOString();
-        const startGarment = stageName === "crop" && decision === "approve" && job.stages.garment.status === "pending";
-        const startModeled = stageName === "garment" && decision === "approve" && job.stages.modeled.status === "pending";
-        if (stageName === "modeled" && decision === "approve") job.status = "complete";
+        const setup = await setupStatus();
+        const startGarment = stageName === "crop" && decision === "approve" && job.stages.garment.status === "pending" && setup.imageGenerationReady;
+        const useCrop = stageName === "crop" && decision === "approve" && job.stages.garment.status === "pending" && !setup.imageGenerationReady;
+        if (useCrop) {
+          job.stages.garment.status = "review";
+          job.stages.garment.assetUrl = job.stages.crop.assetUrl;
+          job.stages.garment.updatedAt = new Date().toISOString();
+        }
+        const startModeled = stageName === "garment" && decision === "approve" && job.stages.modeled.status === "pending" && setup.imageGenerationReady && setup.hasModelReference;
+        if ((stageName === "garment" && decision === "approve" && !startModeled) || (stageName === "modeled" && decision === "approve")) job.status = "complete";
         await saveJob(job);
         if (decision === "approve" && stageName !== "crop") {
           try {
@@ -670,8 +713,15 @@ export function wardrobeImportApi(options = {}) {
       jobsDir = path.join(dataDir, "jobs");
       importedFile = path.join(dataDir, "library.json");
       libraryAssetDir = path.join(dataDir, "imported");
+      settingsFile = path.join(dataDir, "settings.json");
       await mkdir(jobsDir, { recursive: true });
       await mkdir(libraryAssetDir, { recursive: true });
+      try { localSettings = JSON.parse(await readFile(settingsFile, "utf8")); }
+      catch (error) { if (error.code !== "ENOENT") throw error; }
+      for (const [kind, providers] of [["vision", VISION_PROVIDERS], ["image", IMAGE_PROVIDERS]]) {
+        const saved = localSettings[kind];
+        if (saved?.baseUrl && !providers[saved.provider]) saved.provider = "custom";
+      }
       const ids = await readdir(jobsDir).catch(() => []);
       for (const id of ids) {
         const job = await loadJob(id);

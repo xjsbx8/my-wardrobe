@@ -1,71 +1,57 @@
-<div align="center">
+# 我的衣橱 · Wardrobe 中文版
 
-# Wardrobe
+基于 [tandpfun/wardrobe](https://github.com/tandpfun/wardrobe) 的中文二次创作：玻璃质感界面、网页照片上传、多服务商衣物识别，以及可选的商品图和穿搭照生成。
 
-Your clothes, extracted and organized with gpt-image.
+[使用前指引](docs/GETTING_STARTED.zh-CN.md) · [详细配置](README.zh-CN.md) · [阿里云部署](DEPLOY.zh-CN.md) · [English](README.en.md) · [MIT 许可证](LICENSE)
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-191919?style=flat-square)](LICENSE)
-[![Node 22+](https://img.shields.io/badge/node-22%2B-191919?style=flat-square)](package.json)
+## 使用前先了解
 
-[See the original post →](https://x.com/cdngdev/status/2076812846793650485)
+- 准备 Node.js 22+、npm 和一个**支持图片输入的识图 API Key**。模型调用可能产生费用。
+- 生图 API 和模特参考照均为可选项。只配置识图也能识别、裁剪、审核并收藏衣物。
+- 选择“其他兼容接口”时，由你填写地址、模型和密钥。识图与生图是两项独立配置；Agent Plan 的 Seedream 预设用于生图。
+- 上传照片会发送到你选择的服务商处理。衣物图片和密钥保存在运行衣橱服务的设备上，默认目录为 `data/`。
+- 当前是个人衣橱，没有应用内用户登录和多人数据隔离。服务器部署需按部署说明配置 HTTPS 与访问密码。
 
-</div>
+首次使用请先阅读 [完整指引](docs/GETTING_STARTED.zh-CN.md)，再上传照片。
 
-![Wardrobe gallery](docs/screenshots/gallery.png)
+## 本地启动
 
-![Modeled wardrobe editor](docs/screenshots/editor.png)
-
-## Quick start
+下载本仓库 ZIP 并解压，在包含 `package.json` 的目录打开终端：
 
 ```bash
-git clone https://github.com/tandpfun/wardrobe.git
-cd wardrobe
-npm install
-cp .env.example .env
+npm ci
 npm run dev
 ```
 
-⚠️ The importer stays disabled until you add `OPENAI_API_KEY` to `.env` and place a PNG reference photo of yourself at `data/model-reference.png`.
+浏览器打开 <http://127.0.0.1:5173/>。点击“设置”选择识图服务、填写 API Key 并保存。默认可直接在网页里配置，无需创建 `.env`。
 
-Open [localhost:5173](http://localhost:5173).
+之后按“上传衣物照片 → 审核裁剪和信息 → 确认入库”的顺序操作；配置了生图后，会增加商品图和可选穿搭照的审核步骤。手机可用照片选择器上传，电脑还支持拖放和粘贴。
 
-## Import with Codex
+## 功能与限制
 
-This repo includes two Codex skills: one imports clothes and generates modeled item photos; the other styles complete outfits and generates a modeled lookbook.
+| 功能 | 当前支持情况 |
+| --- | --- |
+| 中文界面与浅色玻璃样式 | 支持 |
+| 识图 | Kimi、通义千问、DeepSeek、普通方舟、其他兼容接口 |
+| 生图 | 普通方舟、方舟 Agent Plan、其他兼容图片编辑接口 |
+| 手机网页 | 有响应式布局，实际体验需按设备验收 |
+| 服务器部署 | 提供 Node 运行入口、systemd 和 Caddy 示例 |
+| 跨设备数据 | 已导入衣物保存在服务器；后续名称、分类、颜色及标签修改仍保存在各浏览器，不会跨设备同步 |
 
-```text
-$import-clothes Import the clothes from ~/Pictures/outfits, create modeled photos, and add them to this wardrobe.
-$generate-outfits Create modeled outfit ideas from my wardrobe.
+服务商模型预设可手动修改，可用模型和调用权限以你的账号与服务商控制台为准。详情参阅 [API 配置说明](README.zh-CN.md)。
+
+## 服务器部署
+
+```bash
+npm ci
+npm run build
+npm run start
 ```
 
-Open the cloned repo in Codex and run either prompt. The import skill asks for a local model-reference PNG when needed, reviews every cutout and modeled photo, then writes to `data/library.json` and `data/imported/`. The outfit skill asks how many looks to create, then curates, generates, verifies, and saves the complete collection under `data/`.
+默认监听 `127.0.0.1:3000`。完整应用包含图片 API，部署时需保留服务端源码与依赖；请按 [阿里云部署说明](DEPLOY.zh-CN.md) 设置 HTTPS、访问密码、数据目录和开机自启。GitHub 用于托管源码，静态页面托管无法运行此应用的 Node API。
 
-### For agents
+## 开源来源与许可
 
-If you are setting up Wardrobe for a user, ask how they want to import their clothes:
+本版本基于原项目提交 `f44006cce7e4779e595a35b25fbbc8dabc68d7e4`。保留原有 [MIT 版权与许可文本](LICENSE)，并在此说明中文界面、样式、上传和多服务商接入等修改。感谢原作者与贡献者。
 
-- **Codex:** Ask for a folder or camera-roll location and a model-reference PNG, then extract, model, and import the individual pieces by following [the bundled import skill](.agents/skills/import-clothes/SKILL.md). Afterward, offer to create a requested number of modeled looks with [the outfit-generation skill](.agents/skills/generate-outfits/SKILL.md).
-- **Web UI:** Help the user configure their own `OPENAI_API_KEY` and `data/model-reference.png`, then let them import through the app.
-
-## What it does
-
-- Detects every garment in a photo with the OpenAI Responses API
-- Extracts clean product cutouts with the OpenAI Images API
-- Generates an optional modeled editorial preview
-- Keeps originals, jobs, generated images, and the JSON database local in `data/`
-- Supports drag, drop, paste, editing, review, regeneration, and approval
-
-## Configuration
-
-| Variable | Default |
-| --- | --- |
-| `OPENAI_API_KEY` | Required |
-| `OPENAI_VISION_MODEL` | `gpt-5.4-mini` |
-| `OPENAI_IMAGE_MODEL` | `gpt-image-2` |
-| `OPENAI_IMAGE_QUALITY` | `high` |
-| `WARDROBE_MODEL_REFERENCE` | `data/model-reference.png` |
-| `WARDROBE_DATA_DIR` | `data` |
-
-## License
-
-[MIT](LICENSE)
+发布或贡献代码时请保留许可和来源说明。`.env`、`data/`、个人照片和 API Key 不应上传到仓库。参与开发请参阅 [贡献说明](CONTRIBUTING.md)。

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Plus, Trash, X } from "@phosphor-icons/react";
+import { Check, GearSix, Plus, Trash, UploadSimple, X } from "@phosphor-icons/react";
 import { WardrobeImportFlow } from "./import-flow.jsx";
 import { OptimizedImage } from "./OptimizedImage.jsx";
 
@@ -7,12 +7,12 @@ const STORAGE_KEY = "open-wardrobe-edits-v1";
 const DELETED_STORAGE_KEY = "open-wardrobe-deleted-v1";
 
 const TYPES = [
-  { id: "all", label: "All" },
-  { id: "upperbody", label: "Tops", singular: "Top" },
-  { id: "wholebody_up", label: "Jackets", singular: "Jacket" },
-  { id: "lowerbody", label: "Bottoms", singular: "Bottom" },
-  { id: "accessories_up", label: "Accessories", singular: "Accessory" },
-  { id: "shoes", label: "Shoes", singular: "Shoes" },
+  { id: "all", label: "全部" },
+  { id: "upperbody", label: "上装", singular: "上装" },
+  { id: "wholebody_up", label: "外套", singular: "外套" },
+  { id: "lowerbody", label: "下装", singular: "下装" },
+  { id: "accessories_up", label: "配饰", singular: "配饰" },
+  { id: "shoes", label: "鞋履", singular: "鞋履" },
 ];
 
 const TYPE_MAP = Object.fromEntries(TYPES.map((type) => [type.id, type]));
@@ -154,14 +154,14 @@ function sampleImageColor(image, canvas, event) {
 }
 
 function GalleryItem({ item, selected, onOpen }) {
-  const type = TYPE_MAP[item.part]?.singular || "wardrobe item";
+  const type = TYPE_MAP[item.part]?.singular || "单品";
 
   return (
     <button
       className={`gallery-item${selected ? " selected" : ""}`}
       type="button"
       onClick={() => onOpen(item.id)}
-      aria-label={`View ${item.name || type}`}
+      aria-label={`查看${item.name || type}`}
       aria-pressed={selected}
       data-testid={`wardrobe-item-${item.id}`}
     >
@@ -171,6 +171,7 @@ function GalleryItem({ item, selected, onOpen }) {
         sizes="(max-width: 520px) calc(50vw - 16px), (max-width: 860px) calc(33vw - 18px), 180px"
         breakpoints={[120, 180, 240, 320, 480]}
       />
+      <span className="gallery-item__meta"><strong>{item.name || type}</strong><small>{type}</small></span>
     </button>
   );
 }
@@ -191,7 +192,7 @@ function TagEditor({ tags, onChange }) {
         {tags.map((tag) => (
           <span className="editable-tag" key={tag}>
             {tag}
-            <button type="button" onClick={() => onChange(tags.filter((existing) => existing !== tag))} aria-label={`Remove ${tag}`}>
+            <button type="button" onClick={() => onChange(tags.filter((existing) => existing !== tag))} aria-label={`删除标签 ${tag}`}>
               <X size={12} weight="regular" aria-hidden="true" />
             </button>
           </span>
@@ -207,10 +208,10 @@ function TagEditor({ tags, onChange }) {
               addTag();
             }
           }}
-          placeholder="Add a detail"
-          aria-label="Add detail tag"
+          placeholder="添加细节标签"
+          aria-label="添加细节标签"
         />
-        <button type="button" onClick={addTag} disabled={!input.trim()} aria-label="Add detail">
+        <button type="button" onClick={addTag} disabled={!input.trim()} aria-label="添加标签">
           <Plus size={15} weight="regular" aria-hidden="true" />
         </button>
       </div>
@@ -224,10 +225,10 @@ function ColorControl({ label, field, value, palette, onChange, sampling, setSam
       <div className="color-slot empty-color-slot">
         <div className="color-slot-heading">
           <span>{label}</span>
-          <small>Optional</small>
+          <small>可选</small>
         </div>
-        <p>No distinct secondary color detected.</p>
-        <button className="add-secondary-button" type="button" onClick={onAdd}>Add secondary color</button>
+        <p>未检测到明显的第二种颜色。</p>
+        <button className="add-secondary-button" type="button" onClick={onAdd}>添加辅助色</button>
       </div>
     );
   }
@@ -236,25 +237,25 @@ function ColorControl({ label, field, value, palette, onChange, sampling, setSam
     <div className="color-slot">
       <div className="color-slot-heading">
         <span>{label}</span>
-        {optional && <button type="button" onClick={onClear}>Remove</button>}
+        {optional && <button type="button" onClick={onClear}>移除</button>}
       </div>
       <label className="selected-color-control">
         <input
           type="color"
           value={value || "#9a9286"}
           onChange={(event) => onChange(event.target.value)}
-          aria-label={`Choose ${label.toLowerCase()}`}
+          aria-label={`选择${label}`}
         />
         <span className="selected-color-copy">
-          <small>Selected</small>
-          <strong>{value || "Custom"}</strong>
+          <small>已选颜色</small>
+          <strong>{value || "自定义"}</strong>
         </span>
       </label>
       <div className="suggestion-heading">
-        <span>Image suggestions</span>
-        <small>Click to apply</small>
+        <span>图片取色建议</span>
+        <small>点击使用</small>
       </div>
-      <div className="palette" aria-label={`${label} suggestions from image`}>
+      <div className="palette" aria-label={`${label}图片取色建议`}>
         {palette.map((color) => (
           <button
             type="button"
@@ -262,7 +263,7 @@ function ColorControl({ label, field, value, palette, onChange, sampling, setSam
             className={value?.toLowerCase() === color.toLowerCase() ? "active" : ""}
             style={{ backgroundColor: color }}
             onClick={() => onChange(color)}
-            aria-label={`Use ${color} as ${label.toLowerCase()}`}
+            aria-label={`将 ${color} 设为${label}`}
             title={color}
           />
         ))}
@@ -272,7 +273,7 @@ function ColorControl({ label, field, value, palette, onChange, sampling, setSam
         type="button"
         onClick={() => setSampling((current) => current === field ? null : field)}
       >
-        {sampling === field ? "Cancel picking" : `Pick ${label.toLowerCase()} from image`}
+        {sampling === field ? "取消取色" : `从图片选取${label}`}
       </button>
     </div>
   );
@@ -284,26 +285,26 @@ function ItemEditor({ draft, setDraft, palette, sampling, setSampling, sampleSta
   return (
     <div className="item-editor">
       <label className="field">
-        <span>Name</span>
+        <span>名称</span>
         <input
           value={draft.name}
           onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-          placeholder={TYPE_MAP[draft.part]?.singular || "Wardrobe item"}
+          placeholder={TYPE_MAP[draft.part]?.singular || "衣物单品"}
         />
       </label>
 
       <label className="field">
-        <span>Category</span>
+        <span>分类</span>
         <select value={draft.part} onChange={(event) => setDraft((current) => ({ ...current, part: event.target.value }))}>
           {TYPES.slice(1).map((type) => <option value={type.id} key={type.id}>{type.label}</option>)}
         </select>
       </label>
 
       <fieldset className="color-field">
-        <legend>Colors</legend>
+        <legend>颜色</legend>
         <div className="colors-editor">
           <ColorControl
-            label="Primary color"
+            label="主色"
             field="primary"
             value={draft.color}
             palette={palette}
@@ -312,7 +313,7 @@ function ItemEditor({ draft, setDraft, palette, sampling, setSampling, sampleSta
             setSampling={setSampling}
           />
           <ColorControl
-            label="Secondary color"
+            label="辅助色"
             field="secondary"
             value={draft.secondaryColor}
             palette={palette}
@@ -324,11 +325,11 @@ function ItemEditor({ draft, setDraft, palette, sampling, setSampling, sampleSta
             onAdd={() => setDraft((current) => ({ ...current, secondaryColor: suggestedSecondary }))}
           />
         </div>
-        <p className="color-help" aria-live="polite">{sampling ? `Click anywhere on the garment to sample the ${sampling} color.` : sampleStatus || "Primary colors come from the image. A secondary is suggested only when a distinct color has meaningful coverage."}</p>
+        <p className="color-help" aria-live="polite">{sampling ? "点击衣物图片上的位置取色。" : sampleStatus || "主色取自图片；只有第二种颜色足够明显时才建议辅助色。"}</p>
       </fieldset>
 
       <div className="field details-field">
-        <span>Details</span>
+        <span>细节标签</span>
         <TagEditor tags={draft.tags} onChange={(tags) => setDraft((current) => ({ ...current, tags }))} />
       </div>
     </div>
@@ -346,7 +347,7 @@ function ItemViewer({ item, onClose, onSave, onDelete }) {
   const [draft, setDraft] = useState({ name: item.name || "", part: item.part, color: item.color || "#9a9286", secondaryColor: item.secondaryColor || null, tags: [...(item.tags || [])] });
   const [shaking, setShaking] = useState(false);
   const [closeBlocked, setCloseBlocked] = useState(false);
-  const type = TYPE_MAP[item.part]?.singular || "Wardrobe item";
+  const type = TYPE_MAP[item.part]?.singular || "衣物单品";
   const hasModeledImage = Boolean(item.modeledImage);
   const pieceRotation = useMemo(() => {
     const hash = [...item.id].reduce((total, character) => total + character.charCodeAt(0), 0);
@@ -424,7 +425,7 @@ function ItemViewer({ item, onClose, onSave, onDelete }) {
   const saveEditing = () => {
     onSave({ ...item, ...draft, name: draft.name.trim(), tags: draft.tags.map((tag) => tag.trim()).filter(Boolean) });
     setSampling(null);
-    setSampleStatus("Changes saved.");
+    setSampleStatus("修改已保存。");
   };
 
   const handleImageLoad = (event) => {
@@ -437,13 +438,13 @@ function ItemViewer({ item, onClose, onSave, onDelete }) {
     if (!sampling || !samplingCanvasRef.current) return;
     const color = sampleImageColor(event.currentTarget, samplingCanvasRef.current, event);
     if (!color) {
-      setSampleStatus("That spot is transparent—try directly on the garment.");
+      setSampleStatus("这个位置是透明的，请点击衣物本身。");
       return;
     }
     const targetField = sampling === "secondary" ? "secondaryColor" : "color";
     setDraft((current) => ({ ...current, [targetField]: color }));
     setPalette((current) => [color, ...current.filter((existing) => existing.toLowerCase() !== color.toLowerCase())].slice(0, 5));
-    setSampleStatus(`Sampled ${color} as the ${sampling} color.`);
+    setSampleStatus(`已选取颜色 ${color}。`);
     setSampling(null);
   };
 
@@ -455,22 +456,22 @@ function ItemViewer({ item, onClose, onSave, onDelete }) {
       <OptimizedImage
         ref={imageRef}
         src={item.image}
-        alt={`Selected ${type.toLowerCase()}`}
+        alt={`当前${type}`}
         sizes="(max-width: 520px) 40vw, 300px"
         breakpoints={[160, 240, 320, 480, 640]}
         priority
         onLoad={handleImageLoad}
         onClick={handleImageClick}
       />
-      {sampling && <span className="sample-hint">Click garment to sample</span>}
+      {sampling && <span className="sample-hint">点击衣物取色</span>}
     </div>
   );
 
   return (
     <div className="viewer-overlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && requestClose()}>
     <div className="viewer-entry">
-    <aside className={`viewer editing${hasModeledImage ? " has-modeled-image" : ""}${shaking ? " shake" : ""}`} role="dialog" aria-modal="true" aria-label="Selected wardrobe item">
-      <button className="viewer-icon-close" type="button" onClick={requestClose} aria-label="Close viewer" ref={closeButtonRef}>
+    <aside className={`viewer editing${hasModeledImage ? " has-modeled-image" : ""}${shaking ? " shake" : ""}`} role="dialog" aria-modal="true" aria-label="衣物详情">
+      <button className="viewer-icon-close" type="button" onClick={requestClose} aria-label="关闭详情" ref={closeButtonRef}>
         <X size={24} weight="light" aria-hidden="true" />
       </button>
 
@@ -479,7 +480,7 @@ function ItemViewer({ item, onClose, onSave, onDelete }) {
           <OptimizedImage
             className="modeled-hero-photo"
             src={item.modeledImage}
-            alt={`${draft.name || type} worn by a model`}
+            alt={`${draft.name || type}穿搭照`}
             sizes="(max-width: 860px) 100vw, 520px"
             breakpoints={[320, 480, 640, 800, 1040, 1280]}
             quality={82}
@@ -513,16 +514,16 @@ function ItemViewer({ item, onClose, onSave, onDelete }) {
           sampleStatus={sampleStatus}
         />
 
-        {closeBlocked && <p className="unsaved-notice" role="status">Save or cancel changes before closing.</p>}
+        {closeBlocked && <p className="unsaved-notice" role="status">请先保存或取消修改。</p>}
 
         <div className="viewer-actions">
           <button className="delete-button" type="button" onClick={() => onDelete(item.id)}>
-            <Trash size={15} weight="regular" aria-hidden="true" /> Delete
+            <Trash size={15} weight="regular" aria-hidden="true" /> 删除
           </button>
           <span className="action-spacer" />
-          <button className="secondary-button" type="button" onClick={cancelEditing}>Cancel</button>
+          <button className="secondary-button" type="button" onClick={cancelEditing}>取消</button>
           <button className="primary-button" type="button" onClick={saveEditing}>
-            <Check size={15} weight="bold" aria-hidden="true" /> Save
+            <Check size={15} weight="bold" aria-hidden="true" /> 保存
           </button>
         </div>
       </div>
@@ -538,11 +539,13 @@ export function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [uploadSignal, setUploadSignal] = useState(0);
 
   useEffect(() => {
     fetch("/api/import/wardrobe", { cache: "no-store" })
       .then((response) => {
-        if (!response.ok) throw new Error("Could not load the wardrobe.");
+        if (!response.ok) throw new Error("衣橱加载失败。");
         return response.json();
       })
       .then((loadedItems) => {
@@ -582,7 +585,7 @@ export function App() {
     if (id.startsWith("import-")) {
       try {
         const response = await fetch(`/api/import/wardrobe/${id}`, { method: "DELETE" });
-        if (!response.ok && response.status !== 404) throw new Error("Could not delete the imported item.");
+        if (!response.ok && response.status !== 404) throw new Error("无法删除这件衣物。");
       } catch (requestError) {
         setError(requestError.message);
         return;
@@ -607,10 +610,16 @@ export function App() {
     <div className={`app-shell${selectedItem ? " has-selection" : ""}`}>
       <main className="gallery-pane">
         <header className="gallery-header">
-          <div className="gallery-meta-row">
-            <p className="piece-count">{items.length} {items.length === 1 ? "piece" : "pieces"}</p>
+          <div className="gallery-brand-row">
+            <div className="gallery-brand-mark" aria-hidden="true">衣</div>
+            <div className="gallery-brand-copy"><p>MY WARDROBE · 私人衣橱</p><h1>我的衣橱</h1><span>让每一件喜欢的衣服，都有自己的位置。</span></div>
+            <button className="gallery-settings" type="button" onClick={() => setSettingsOpen(true)}><GearSix size={19} /> 设置</button>
           </div>
-          <nav className="category-nav" aria-label="Filter wardrobe by item type">
+          <div className="gallery-meta-row">
+            <p className="piece-count">已收藏 <strong>{items.length}</strong> 件单品</p>
+            <button className="gallery-upload" type="button" onClick={() => setUploadSignal((value) => value + 1)}><UploadSimple size={18} /> 上传衣物照片</button>
+          </div>
+          <nav className="category-nav" aria-label="按衣物类型筛选">
             {TYPES.map((type) => (
               <button
                 key={type.id}
@@ -625,12 +634,22 @@ export function App() {
           </nav>
         </header>
 
+        <details className="usage-guide" open={!loading && !items.length}>
+          <summary>初次使用？上传前先看这 3 步</summary>
+          <ol>
+            <li><strong>先配置识图。</strong>在“设置”中选择支持图片输入的模型，填写 API Key；其他服务可用“其他兼容接口”自行填写。</li>
+            <li><strong>再上传并审核。</strong>选择衣物照片，核对裁剪、分类和颜色，确认后入库。</li>
+            <li><strong>需要时再开生图。</strong>生图密钥和模特参考照均为可选项；未配置生图时可用裁剪图入库。</li>
+          </ol>
+          <p>照片会发送给所选服务商，模型调用可能收费。当前衣橱共用一份配置；衣物信息的后续修改仅保存在当前浏览器。</p>
+          <button type="button" onClick={() => setSettingsOpen(true)}>开始配置</button>
+        </details>
         {error && <p className="status error">{error}</p>}
-        {!error && loading && <p className="status">Loading wardrobe</p>}
-        {!error && !loading && !items.length && <p className="status empty">Drop, paste, or add a photo to import your first piece.</p>}
+        {!error && loading && <p className="status">正在整理衣橱…</p>}
+        {!error && !loading && !items.length && <div className="empty-wardrobe"><span className="empty-wardrobe__icon">✦</span><h2>从第一件心爱单品开始</h2><p>上传衣物照片，自动识别并整理到你的私人衣橱。</p><button type="button" onClick={() => setUploadSignal((value) => value + 1)}><UploadSimple size={18} /> 上传照片</button></div>}
 
         {!!items.length && (
-          <section className="gallery-grid" aria-label={`${TYPE_MAP[activeType]?.label || "All"} wardrobe items`}>
+          <section className="gallery-grid" aria-label={`${TYPE_MAP[activeType]?.label || "全部"}衣物`}>
             {visibleItems.map((item) => (
               <GalleryItem
                 key={item.id}
@@ -644,7 +663,7 @@ export function App() {
       </main>
 
       {selectedItem && <ItemViewer item={selectedItem} onClose={() => setSelectedId(null)} onSave={saveItem} onDelete={deleteItem} />}
-      <WardrobeImportFlow onGarmentApproved={addImportedItem} onModeledApproved={attachImportedModeledImage} />
+      <WardrobeImportFlow onGarmentApproved={addImportedItem} onModeledApproved={attachImportedModeledImage} settingsOpen={settingsOpen} onOpenSettings={() => setSettingsOpen(true)} onCloseSettings={() => setSettingsOpen(false)} uploadSignal={uploadSignal} hasItems={items.length > 0} />
     </div>
   );
 }

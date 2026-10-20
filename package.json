@@ -2,12 +2,13 @@
   "name": "wardrobe",
   "version": "1.0.0",
   "private": true,
-  "description": "A local-first AI wardrobe gallery powered by OpenAI.",
+  "description": "A local-first AI wardrobe gallery with configurable vision and image APIs.",
   "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "start": "node server.mjs",
     "preview": "vite preview",
     "check": "npm run build"
   },
